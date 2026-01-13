@@ -7,7 +7,6 @@ st.title("🥤Customize Your Smoothie!🥤")
 st.write("Choose fruits you want in your custom Smoothie.")
 
 name_on_order = st.text_input("Name on smoothie:")
-st.write("The name on your smoothie will be:", name_on_order)
 
 @st.cache_resource
 def create_session():
@@ -30,7 +29,7 @@ my_dataframe = (
     .select(col("FRUIT_NAME"), col("SEARCH_ON"))
 )
 
-# Convert to pandas once
+# Convert to pandas
 pd_df = my_dataframe.to_pandas()
 
 ingredients_list = st.multiselect(
@@ -40,24 +39,44 @@ ingredients_list = st.multiselect(
 )
 
 if ingredients_list:
-    # Build ingredients string properly
     ingredients_string = " ".join(ingredients_list)
     
     for fruit_chosen in ingredients_list: 
-        # Find the search term for this fruit
+        # Get the search term for API call
         search_on = pd_df.loc[pd_df['FRUIT_NAME'] == fruit_chosen, 'SEARCH_ON'].iloc[0]
         
-        st.write(f'The search value for {fruit_chosen} is {search_on}.')
         st.subheader(f'{fruit_chosen} Nutrition Information')
         
-        # Make API call with the SEARCH_ON value
-        smoothiefroot_response = requests.get(f"https://my.smoothiefroot.com/api/fruit/{search_on}")
+        # Make API call with correct search term
+        api_url = f"https://my.smoothiefroot.com/api/fruit/{search_on}"
+        response = requests.get(api_url)
         
-        # Check if API call was successful before displaying
-        if smoothiefroot_response.status_code == 200:
-            st.dataframe(data=smoothiefroot_response.json(), use_container_width=True)
+        if response.status_code == 200:
+            data = response.json()
+            
+            # Display nutrition info in a nice format
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Carbs", f"{data.get('nutrition', {}).get('carbs', 'N/A')}g")
+            with col2:
+                st.metric("Fat", f"{data.get('nutrition', {}).get('fat', 'N/A')}g")
+            with col3:
+                st.metric("Protein", f"{data.get('nutrition', {}).get('protein', 'N/A')}g")
+            with col4:
+                if 'sugar' in data.get('nutrition', {}):
+                    st.metric("Sugar", f"{data['nutrition']['sugar']}g")
+                else:
+                    st.metric("Sugar", "N/A")
+            
+            # Show additional info
+            st.write(f"**Family:** {data.get('family', 'N/A')}")
+            st.write(f"**Genus:** {data.get('genus', 'N/A')}")
+            st.write(f"**Order:** {data.get('order', 'N/A')}")
+            
         else:
             st.error(f"Could not fetch nutrition data for {fruit_chosen}")
+            st.write(f"API tried: {search_on}")
+            st.write(f"Status code: {response.status_code}")
 
     if st.button("Submit Order"):
         session.sql(
@@ -67,5 +86,4 @@ if ingredients_list:
             """,
             params=[ingredients_string, name_on_order]
         ).collect()
-
         st.success(f"Your Smoothie, {name_on_order}, is ordered! ✅")
