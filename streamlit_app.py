@@ -2,11 +2,13 @@ import streamlit as st
 from snowflake.snowpark import Session
 from snowflake.snowpark.functions import col
 import requests
+import pandas as pd
 
 st.title("🥤Customize Your Smoothie!🥤")
 st.write("Choose fruits you want in your custom Smoothie.")
 
 name_on_order = st.text_input("Name on smoothie:")
+st.write("The name on your smoothie will be:", name_on_order)
 
 @st.cache_resource
 def create_session():
@@ -54,24 +56,52 @@ if ingredients_list:
         if response.status_code == 200:
             data = response.json()
             
-            # Display nutrition info in a nice format
-            col1, col2, col3, col4 = st.columns(4)
-            with col1:
-                st.metric("Carbs", f"{data.get('nutrition', {}).get('carbs', 'N/A')}g")
-            with col2:
-                st.metric("Fat", f"{data.get('nutrition', {}).get('fat', 'N/A')}g")
-            with col3:
-                st.metric("Protein", f"{data.get('nutrition', {}).get('protein', 'N/A')}g")
-            with col4:
-                if 'sugar' in data.get('nutrition', {}):
-                    st.metric("Sugar", f"{data['nutrition']['sugar']}g")
-                else:
-                    st.metric("Sugar", "N/A")
+            # Create nutrition dataframe
+            nutrition_data = data.get('nutrition', {})
             
-            # Show additional info
-            st.write(f"**Family:** {data.get('family', 'N/A')}")
-            st.write(f"**Genus:** {data.get('genus', 'N/A')}")
-            st.write(f"**Order:** {data.get('order', 'N/A')}")
+            if nutrition_data:
+                # Create a proper nutrition dataframe
+                nutrition_df = pd.DataFrame({
+                    'Nutrient': ['Carbs', 'Fat', 'Protein', 'Sugar'],
+                    'Amount (g)': [
+                        nutrition_data.get('carbs', 'N/A'),
+                        nutrition_data.get('fat', 'N/A'),
+                        nutrition_data.get('protein', 'N/A'),
+                        nutrition_data.get('sugar', 'N/A')
+                    ]
+                })
+                
+                # Format the Amount column - remove 'g' if it's already a number
+                def format_amount(x):
+                    if isinstance(x, (int, float)):
+                        return f"{x}g"
+                    return str(x)
+                
+                nutrition_df['Amount (g)'] = nutrition_df['Amount (g)'].apply(format_amount)
+                
+                # Display the dataframe
+                st.dataframe(nutrition_df, use_container_width=True, hide_index=True)
+            else:
+                st.write("No nutrition data available for this fruit.")
+                
+                # Create empty nutrition dataframe
+                nutrition_df = pd.DataFrame({
+                    'Nutrient': ['Carbs', 'Fat', 'Protein', 'Sugar'],
+                    'Amount (g)': ['N/A', 'N/A', 'N/A', 'N/A']
+                })
+                st.dataframe(nutrition_df, use_container_width=True, hide_index=True)
+            
+            # Create info dataframe
+            info_data = {
+                'Category': ['Family', 'Genus', 'Order'],
+                'Value': [
+                    data.get('family', 'N/A'),
+                    data.get('genus', 'N/A'),
+                    data.get('order', 'N/A')
+                ]
+            }
+            info_df = pd.DataFrame(info_data)
+            st.dataframe(info_df, use_container_width=True, hide_index=True)
             
         else:
             st.error(f"Could not fetch nutrition data for {fruit_chosen}")
