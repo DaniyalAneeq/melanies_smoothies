@@ -3,4 +3,4 @@ snowflake-connector-python==3.7.0
 snowflake-snowpark-python[pandas]==1.10.0
 pandas==2.0.3
 pyarrow==14.0.1
-requests=2.32.5
+requests
