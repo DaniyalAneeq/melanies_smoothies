@@ -23,12 +23,16 @@ def create_session():
 
 session = create_session()
 
+# Get both FRUIT_NAME for display and SEARCH_ON for API calls
 my_dataframe = (
     session
     .table("smoothies.public.fruit_options")
-    .select(col("FRUIT_NAME"))
+    .select(col("FRUIT_NAME"), col("SEARCH_ON"))
     .to_pandas()
 )
+
+# Create a dictionary mapping display names to search terms
+fruit_mapping = dict(zip(my_dataframe["FRUIT_NAME"], my_dataframe["SEARCH_ON"]))
 
 ingredients_list = st.multiselect(
     "Choose up to 5 ingredients:",
@@ -38,11 +42,19 @@ ingredients_list = st.multiselect(
 
 if ingredients_list:
     ingredients_string = " ".join(ingredients_list)
-    for fruit_choosen in ingredients_list: 
-        ingredients_string += fruit_choosen + ' '
-        st.subheader(fruit_choosen + 'Nutrition Information')
-        smoothiefroot_response = requests.get("https://my.smoothiefroot.com/api/fruit/" + fruit_choosen)
-        st_df = st.dataframe(data=smoothiefroot_response.json(), use_container_width=True)
+    for fruit_chosen in ingredients_list: 
+        ingredients_string += fruit_chosen + ' '
+        st.subheader(fruit_chosen + ' Nutrition Information')
+        
+        # Use the SEARCH_ON value for API call instead of FRUIT_NAME
+        search_term = fruit_mapping.get(fruit_chosen, fruit_chosen)
+        smoothiefroot_response = requests.get("https://my.smoothiefroot.com/api/fruit/" + search_term)
+        
+        # Check if API call was successful
+        if smoothiefroot_response.status_code == 200:
+            st_df = st.dataframe(data=smoothiefroot_response.json(), use_container_width=True)
+        else:
+            st.error(f"Could not fetch nutrition data for {fruit_chosen} (API returned {smoothiefroot_response.status_code})")
 
     if st.button("Submit Order"):
         session.sql(
@@ -54,4 +66,3 @@ if ingredients_list:
         ).collect()
 
         st.success(f"Your Smoothie, {name_on_order}, is ordered! ✅")
-
